@@ -448,13 +448,47 @@ function toLive(data, cat, via, opt) {
     }));
 }
 
+// Polish and Spanish: pick articles with English Wikipedia's topic search and quality signals,
+// then follow the interlanguage link to the local article. Local featured/good articles are the fallback.
+const FEATURED = { pl: "incategory:Artykuły_na_medal|Dobre_artykuły", es: "incategory:Wikipedia:Artículos_destacados|Wikipedia:Artículos_buenos" };
+async function viaEnglish(enParams, cat, via, opt) {
+  const base = { prop: "langlinks|info", lllang: LANG, lllimit: "max" };
+  let d = await wq(Object.assign({}, base, enParams), "en");
+  if (d.error && enParams.gsrsort) {
+    const p = Object.assign({}, enParams); delete p.gsrsort; p.gsroffset = Math.floor(Math.random() * 300);
+    d = await wq(Object.assign({}, base, p), "en");
+  }
+  const titles = ((d.query && d.query.pages) || [])
+    .filter(p => p.langlinks && p.langlinks.length && (p.length || 0) >= (opt.enMin || 0))
+    .map(p => p.langlinks[0].title || p.langlinks[0]["*"])
+    .filter(x => x && !seenT.has(tkey(x)));
+  if (!titles.length) return [];
+  const d2 = await wq(Object.assign({}, PROPS, { titles: shuffle(titles).slice(0, 20).join("|") }));
+  return toLive(d2, cat, via, opt);
+}
+async function fetchFeatured(cat) {
+  const q = { generator: "search", gsrsearch: FEATURED[LANG], gsrlimit: 20, gsrnamespace: 0 };
+  let d;
+  try { d = await wq(Object.assign({}, PROPS, q, { gsrsort: "random" })); if (d.error) throw 0; }
+  catch { d = await wq(Object.assign({}, PROPS, q, { gsroffset: Math.floor(Math.random() * 400) })); }
+  return toLive(d, cat, { k: "topic" }, { minLen: 6000, needImg: false });
+}
 async function fetchRandom() {
+  if (LANG !== "en") return fetchFeatured("odd");
   const d = await wq(Object.assign({}, PROPS, { generator: "random", grnnamespace: 0, grnlimit: 20 }));
   return toLive(d, "odd", { k: "random" }, { minLen: 5000, needImg: true });
 }
 async function fetchTopic(cat) {
   if (cat === "odd") return fetchUnusual();
   const t = pick(CATS[cat].topics);
+  if (LANG !== "en") {
+    let list = [];
+    try {
+      list = await viaEnglish({ generator: "search", gsrsearch: "articletopic:" + t, gsrlimit: 50, gsrnamespace: 0, gsrsort: "random" },
+        cat, { k: "topic" }, { enMin: 9000, minLen: 3500, needImg: true });
+    } catch {}
+    return list.length ? list : fetchFeatured(cat);
+  }
   const q = { generator: "search", gsrsearch: "articletopic:" + t, gsrlimit: 20, gsrnamespace: 0 };
   let d;
   try { d = await wq(Object.assign({}, PROPS, q, { gsrsort: "random" })); if (d.error) throw 0; }
@@ -464,7 +498,7 @@ async function fetchTopic(cat) {
 }
 async function fetchRelated(seed) {
   const d = await wq(Object.assign({}, PROPS, { generator: "search", gsrsearch: "morelike:" + seed.t, gsrlimit: 20, gsrnamespace: 0 }));
-  return toLive(d, seed.c, { k: "related", from: seed.t }, { minLen: 4000, needImg: false });
+  return toLive(d, seed.c, { k: "related", from: seed.t }, { minLen: LANG === "en" ? 4000 : 5000, needImg: false });
 }
 let unusual = null;
 async function unusualTitles() {
@@ -475,7 +509,7 @@ async function unusualTitles() {
   } catch {}
   const list = []; let cont = {};
   for (let i = 0; i < 6; i++) {
-    const d = await wq(Object.assign({ prop: "links", titles: "Wikipedia:Unusual articles", plnamespace: 0, pllimit: "max" }, cont));
+    const d = await wq(Object.assign({ prop: "links", titles: "Wikipedia:Unusual articles", plnamespace: 0, pllimit: "max" }, cont), "en");
     const p = d && d.query && d.query.pages && d.query.pages[0];
     for (const l of (p && p.links) || []) list.push(l.title);
     if (d.continue && d.continue.plcontinue) cont = { plcontinue: d.continue.plcontinue, continue: d.continue.continue }; else break;
@@ -485,10 +519,16 @@ async function unusualTitles() {
   return list;
 }
 async function fetchUnusual() {
-  if (LANG !== "en") return fetchRandom();
   let list = [];
   try { list = await unusualTitles(); } catch {}
-  const fresh = list.filter(t => !seenT.has(tkey(t)));
+  if (LANG !== "en") {
+    let out = [];
+    if (list.length >= 50) {
+      try { out = await viaEnglish({ titles: shuffle(list).slice(0, 50).join("|") }, "odd", { k: "odd" }, { minLen: 2000, needImg: false }); } catch {}
+    }
+    return out.length ? out : fetchFeatured("odd");
+  }
+  const fresh = list.filter(x => !seenT.has(tkey(x)));
   if (fresh.length < 20) return fetchRandom();
   const d = await wq(Object.assign({}, PROPS, { titles: shuffle(fresh).slice(0, 20).join("|") }));
   return toLive(d, "odd", { k: "odd" }, { minLen: 2500, needImg: false });
