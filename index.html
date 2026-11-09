@@ -773,7 +773,25 @@ function wire(rec) {
 /* ---------- interests sheet ---------- */
 const sheet = $("#sheet"), scrim = $("#scrim");
 let resetArmed = false;
+async function backfillLiked() {
+  const missing = [...liked].filter(id => !S.likedItems[id]);
+  if (!missing.length) return;
+  for (const id of missing) {
+    const a = id.startsWith("s-") && STARTERS.find(x => x.id === id);
+    if (a) S.likedItems[id] = { t: a.title, c: a.cat, at: 0 };
+  }
+  const pids = missing.filter(id => /^w\d+$/.test(id)).map(id => id.slice(1));
+  for (let i = 0; i < pids.length; i += 50) {
+    try {
+      const d = await wq({ pageids: pids.slice(i, i + 50).join("|") });
+      for (const p of (d.query && d.query.pages) || []) if (!p.missing && p.title) S.likedItems["w" + p.pageid] = { t: p.title, c: "", at: 0 };
+    } catch { break; }
+  }
+  save();
+  if (sheet.classList.contains("on")) renderSheet();
+}
 function openSheet() {
+  backfillLiked();
   finalize(active); if (cards[active]) cards[active].enter = 0;
   renderSheet();
   sheet.classList.add("on"); scrim.classList.add("on"); sheet.setAttribute("aria-hidden", "false");
@@ -790,7 +808,7 @@ function renderSheet() {
   const likedList = Object.entries(S.likedItems).sort((x, y) => (y[1].at || 0) - (x[1].at || 0));
   $("#likedHead").textContent = likedList.length ? "Liked (" + likedList.length + ")" : "Liked";
   $("#likedList").innerHTML = likedList.length
-    ? likedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc((CATS[s.c] || CATS.odd).n)}</small></a>`).join("")
+    ? likedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc(CATS[s.c] ? CATS[s.c].n : "")}</small></a>`).join("")
     : `<p class="empty">Tap the heart, or double-tap a card, and it shows up here.</p>`;
   $("#stats").innerHTML = [[S.views, "read"], [liked.size, "liked"], [savedList.length, "saved"]]
     .map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
@@ -806,7 +824,7 @@ function renderSheet() {
     ? tags.map(([t]) => `<span>#${esc(t)}</span>`).join("") + seeds
     : `<p class="empty">Like or linger on a few cards and your rabbit holes will show up here.</p>`;
   $("#savedList").innerHTML = savedList.length
-    ? savedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc((CATS[s.c] || CATS.odd).n)}</small></a>`).join("")
+    ? savedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc(CATS[s.c] ? CATS[s.c].n : "")}</small></a>`).join("")
     : `<p class="empty">Tap the star on any card to keep it here.</p>`;
 }
 $("#resetBtn").addEventListener("click", e => {
@@ -846,6 +864,7 @@ for (const a of shuffle(STARTERS)) {
 }
 ensureAhead();
 setActive(0);
+backfillLiked();
 })();
 
 </script>
