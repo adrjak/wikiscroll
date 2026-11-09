@@ -3,13 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="A swipeable For You feed of real Wikipedia articles that learns what you like.">
+<meta name="description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<link rel="canonical" href="https://wikiscroll.site/">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="WikiScroll">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="WikiScroll">
+<meta property="og:url" content="https://wikiscroll.site/">
+<meta property="og:title" content="WikiScroll: Wikipedia meets TikTok">
+<meta property="og:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<meta property="og:image" content="https://wikiscroll.site/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="WikiScroll: a phone showing the Wikipedia article on the Voynich manuscript in a swipeable feed.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="WikiScroll: Wikipedia meets TikTok">
+<meta name="twitter:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<meta name="twitter:image" content="https://wikiscroll.site/og-image.png">
+<meta name="twitter:image:alt" content="WikiScroll: a phone showing the Wikipedia article on the Voynich manuscript in a swipeable feed.">
 <link rel="preconnect" href="https://en.wikipedia.org">
 <link rel="preconnect" href="https://upload.wikimedia.org">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#101418" media="(prefers-color-scheme: dark)">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>WikiScroll</title>
+<title>WikiScroll: Wikipedia meets TikTok</title>
 <style>
 /* Layout: one full-height snap feed; each card is a mobile encyclopedia page: title, picture with caption, lead paragraph, one infobox row, action bar. */
 :root{
@@ -751,8 +772,12 @@ addEventListener("resize", () => cards.forEach(c => markClip(c.el)));
 function appendNext() {
   const p = pickNext();
   if (!p) return false;
-  const el = renderCard(p.a, p.reason);
-  const rec = { a: p.a, el, reason: p.reason, enter: 0, flags: {} };
+  appendArticle(p.a, p.reason);
+  return true;
+}
+function appendArticle(a, reason) {
+  const el = renderCard(a, reason);
+  const rec = { a, el, reason, enter: 0, flags: {} };
   cards.push(rec);
   wire(rec);
   if (endEl) feed.insertBefore(el, endEl); else feed.appendChild(el);
@@ -765,10 +790,10 @@ function appendNext() {
     hint.innerHTML = ICON.up + esc(t("hint"));
     el.appendChild(hint);
   }
-  return true;
 }
 
 function ensureAhead() {
+  if (starting) return;
   while (cards.length < active + 3) {
     if (!appendNext()) { showEnd(); break; }
   }
@@ -956,11 +981,38 @@ $("#resetBtn").addEventListener("click", e => {
   restartFeed(false);
   toast(t("fresh"));
 });
-function restartFeed(dropPool) {
+// The feed always opens on the Voynich manuscript, in the current language.
+const PIN = { en: "Voynich manuscript", pl: "Manuskrypt Wojnicza", es: "Manuscrito Voynich" };
+let starting = false, startGen = 0;
+async function pinnedArticle() {
+  if (LANG === "en") return STARTERS.find(a => a.title === PIN.en) || null;
+  try {
+    const d = await Promise.race([wq(Object.assign({}, PROPS, { titles: PIN[LANG] })), new Promise((_, rej) => setTimeout(() => rej(0), 4000))]);
+    return toLive(d, "art", { k: "pin" }, { minLen: 0, needImg: false })[0] || null;
+  } catch { return null; }
+}
+async function restartFeed(dropPool) {
+  const g = ++startGen;
+  starting = true;
   for (const c of cards) io.unobserve(c.el);
   cards.length = 0; active = -1; feed.innerHTML = ""; endEl = null; feed.scrollTop = 0;
   pool = dropPool ? [] : pool.filter(a => a.live);
-  if (LANG === "en") shuffle(STARTERS).slice(0, 2).forEach(addToPool);
+  if (LANG !== "en") showEnd();
+  const pin = await pinnedArticle();
+  if (g !== startGen) return;
+  if (endEl) { endEl.remove(); endEl = null; }
+  if (pin) {
+    pool = pool.filter(p => tkey(p.title) !== tkey(pin.title));
+    appendArticle(pin, { k: "start", t: t("starter") });
+  }
+  if (LANG === "en") {
+    const used = new Set([pin && pin.cat]);
+    for (const a of shuffle(STARTERS)) {
+      if (used.size >= 3) break;
+      if (!used.has(a.cat) && addToPool(a)) used.add(a.cat);
+    }
+  }
+  starting = false;
   ensureAhead();
   if (cards.length) setActive(0);
 }
@@ -1008,13 +1060,7 @@ document.addEventListener("keydown", e => {
 
 /* ---------- go: two instant starter cards, then live Wikipedia ---------- */
 applyStatic();
-const firstCats = new Set();
-if (LANG === "en") for (const a of shuffle(STARTERS)) {
-  if (firstCats.size >= 2) break;
-  if (!firstCats.has(a.cat) && addToPool(a)) firstCats.add(a.cat);
-}
-ensureAhead();
-if (cards.length) setActive(0);
+restartFeed(false);
 backfillLiked();
 })();
 
