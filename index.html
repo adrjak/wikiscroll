@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<meta name="description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish, Spanish, German and Georgian.">
 <link rel="canonical" href="https://wikiscroll.site/">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -15,14 +15,14 @@
 <meta property="og:site_name" content="WikiScroll">
 <meta property="og:url" content="https://wikiscroll.site/">
 <meta property="og:title" content="WikiScroll: Wikipedia meets TikTok">
-<meta property="og:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<meta property="og:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish, Spanish, German and Georgian.">
 <meta property="og:image" content="https://wikiscroll.site/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="WikiScroll: a phone showing the Wikipedia article on the Voynich manuscript in a swipeable feed.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="WikiScroll: Wikipedia meets TikTok">
-<meta name="twitter:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish and Spanish.">
+<meta name="twitter:description" content="Swipe through real Wikipedia articles. Like, save and linger, and the feed learns what you can’t stop reading. In English, Polish, Spanish, German and Georgian.">
 <meta name="twitter:image" content="https://wikiscroll.site/og-image.png">
 <meta name="twitter:image:alt" content="WikiScroll: a phone showing the Wikipedia article on the Voynich manuscript in a swipeable feed.">
 <link rel="preconnect" href="https://en.wikipedia.org">
@@ -70,10 +70,16 @@ a{color:var(--link)}
 .tabs .on{color:var(--text);font-weight:600;border-bottom-color:var(--link)}
 .tabs .off{color:var(--faint)}
 .tools{display:flex;align-items:center;gap:4px}
-.langs{display:flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
-.langs button{font-size:12px;font-weight:600;padding:5px 8px;color:var(--muted);background:var(--bg);border-right:1px solid var(--rule-soft)}
-.langs button:last-child{border-right:0}
-.langs button[aria-pressed="true"]{background:var(--link);color:#fff}
+.langpick{position:relative}
+.langbtn{display:flex;align-items:center;gap:5px;height:34px;padding:0 8px;border:1px solid var(--rule);border-radius:2px;font-size:13px;font-weight:600;color:var(--text);background:var(--bg)}
+.langbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.langbtn .chev{width:14px;height:14px;color:var(--muted)}
+.langmenu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:180px;background:var(--bg);border:1px solid var(--rule);box-shadow:0 6px 18px rgba(0,0,0,.12);display:flex;flex-direction:column;padding:4px 0}
+.langmenu button{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 14px;font-size:15px;text-align:left;color:var(--text)}
+.langmenu button small{font-size:11px;font-weight:600;color:var(--faint)}
+.langmenu button:hover{background:var(--box)}
+.langmenu button[aria-checked="true"]{color:var(--link);font-weight:600}
+.langmenu button[aria-checked="true"] small{color:var(--link)}
 .iconbtn{width:40px;height:40px;border-radius:4px;display:grid;place-items:center;color:var(--muted)}
 .iconbtn:hover{background:var(--box)}
 .iconbtn svg{width:20px;height:20px}
@@ -194,7 +200,12 @@ a{color:var(--link)}
   <header class="top">
     <div class="brand">WikiScroll<sup>[fyp]</sup></div>
     <div class="tools">
-    <div class="langs" id="langs" role="group" aria-label="Wikipedia language"><button data-l="en" aria-pressed="false">EN</button><button data-l="pl" aria-pressed="false">PL</button><button data-l="es" aria-pressed="false">ES</button></div>
+    <div class="langpick">
+      <button class="langbtn" id="langBtn" aria-haspopup="true" aria-expanded="false" aria-label="Wikipedia language">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.6" ry="8.5"/><path d="M3.5 12h17"/></svg><span id="langCode">EN</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+      </button>
+      <div class="langmenu" id="langMenu" role="menu" hidden></div>
+    </div>
     <button class="iconbtn" id="openSheet" aria-label="Your likes, saved articles and interests">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
     </button>
@@ -300,8 +311,46 @@ const I18N = {
     eHoles: "Dale me gusta o detente en algunas tarjetas y aquí aparecerán tus madrigueras.",
     reset: "Reiniciar mi feed", resetArm: "Toca otra vez para borrarlo todo", back: "Volver al feed",
     note: 'Los artículos se cargan en directo desde <a href="https://es.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a>. El texto procede de la introducción de cada artículo y está disponible bajo <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.es" target="_blank" rel="noopener">CC BY-SA 4.0</a>; las imágenes vienen de Wikimedia Commons, con sus créditos en la página de cada artículo. La memoria del feed se queda en este navegador.'
+  },
+  de: {
+    cats: { space: "Weltraum", nature: "Natur", history: "Geschichte", science: "Wissenschaft", body: "Der Körper", art: "Kunst & Kultur", places: "Orte", tech: "Technik", language: "Sprache", odd: "Kurioses" },
+    starter: "Zum Einstieg", explore: c => "Etwas Neues · " + c, becauseLiked: x => "Weil dir gefiel: " + x, becauseLike: x => "Weil du #" + x + " magst", more: c => "Mehr: " + c, picked: "Für dich ausgewählt",
+    from: "Aus Wikipedia, der freien Enzyklopädie", summary: "Zusammenfassung des Wikipedia-Artikels", read: "Ganzen Artikel lesen →",
+    like: "Mag ich", save: "Merken", share: "Teilen", nope: "Nein", shareA: "Link kopieren", nopeA: "Dieses Thema interessiert mich nicht",
+    hint: "Nach oben wischen für den nächsten", saved: "Auf deiner Liste gemerkt", unsaved: "Aus Gemerkten entfernt", copied: "Link kopiert",
+    less: c => "Verstanden. Eine Weile weniger " + c, fresh: "Neustart. Der Feed lernt von vorn",
+    offShelf: "Wikipedia ist gerade nicht erreichbar.", off: "Wikipedia ist gerade nicht erreichbar.",
+    loadH: "Die Enzyklopädie wird geöffnet", loadP: "Artikel für dich werden geladen.",
+    offH: "Wikipedia nicht erreichbar", offP: "Prüfe deine Verbindung. Der Feed versucht es gleich erneut.", retry: "Jetzt erneut versuchen",
+    sheetTitle: "Dein WikiScroll", settingsA: "Deine Likes, gemerkten Artikel und Interessen", langA: "Wikipedia-Sprache",
+    lede: "Jedes Like, Merken, Teilen, längere Lesen und schnelle Wischen verschiebt diese Gewichte. Der Feed zeigt vor allem, was am höchsten punktet, und testet immer wieder neue Themen, damit du nicht in einer Spur stecken bleibst.",
+    sRead: "gelesen", sLiked: "gemocht", sSaved: "gemerkt", hLiked: "Gemocht", hSaved: "Gemerkt", hTopics: "Themen", hHoles: "Deine Kaninchenbauten",
+    eLiked: "Tippe aufs Herz oder doppelt auf eine Karte, dann erscheint sie hier.", eSaved: "Tippe auf den Stern einer Karte, um sie hier zu behalten.",
+    eHoles: "Like ein paar Karten oder lies sie länger, dann erscheinen hier deine Kaninchenbauten.",
+    reset: "Feed zurücksetzen", resetArm: "Nochmal tippen, um alles zu löschen", back: "Zurück zum Feed",
+    note: 'Artikel werden live aus der <a href="https://de.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a> geladen. Der Text stammt aus der Einleitung des jeweiligen Artikels und steht unter <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.de" target="_blank" rel="noopener">CC BY-SA 4.0</a>; Bilder stammen aus Wikimedia Commons, die Urheber stehen auf der Seite des jeweiligen Artikels. Das Gedächtnis des Feeds bleibt in diesem Browser.'
+  },
+  ka: {
+    cats: { space: "კოსმოსი", nature: "ბუნება", history: "ისტორია", science: "მეცნიერება", body: "ადამიანის სხეული", art: "ხელოვნება და კულტურა", places: "ადგილები", tech: "ტექნოლოგია", language: "ენა", odd: "კურიოზები" },
+    starter: "დასაწყისისთვის", explore: c => "რაღაც ახალი · " + c, becauseLiked: x => "რადგან მოგეწონა: " + x, becauseLike: x => "რადგან მოგწონს #" + x, more: c => "მეტი: " + c, picked: "შენთვის შერჩეული",
+    from: "მასალა ვიკიპედიიდან — თავისუფალი ენციკლოპედია", summary: "ვიკიპედიის სტატიის მოკლე შინაარსი", read: "სრული სტატიის წაკითხვა →",
+    like: "მომწონს", save: "შენახვა", share: "გაზიარება", nope: "არა", shareA: "ბმულის კოპირება", nopeA: "ეს თემა არ მაინტერესებს",
+    hint: "აუსვი ზემოთ შემდეგისთვის", saved: "შენახულია სიაში", unsaved: "წაიშალა შენახულებიდან", copied: "ბმული დაკოპირდა",
+    less: c => "გასაგებია. ცოტა ხნით ნაკლები: " + c, fresh: "ახალი დასაწყისი. ფიდი თავიდან სწავლობს",
+    offShelf: "ვიკიპედიასთან კავშირი ვერ დამყარდა.", off: "ვიკიპედიასთან კავშირი ვერ დამყარდა.",
+    loadH: "ენციკლოპედია იხსნება", loadP: "შენთვის შერჩეული სტატიები იტვირთება.",
+    offH: "ვიკიპედიასთან კავშირი არ არის", offP: "შეამოწმე ინტერნეტი. ფიდი ცოტა ხანში ისევ სცდის.", retry: "ხელახლა ცდა",
+    sheetTitle: "შენი WikiScroll", settingsA: "მოწონებული, შენახული და ინტერესები", langA: "ვიკიპედიის ენა",
+    lede: "ყოველი მოწონება, შენახვა, გაზიარება, ხანგრძლივი კითხვა და სწრაფი გადაფურცვლა ცვლის ამ წონებს. ფიდი ძირითადად აჩვენებს იმას, რაც ყველაზე მაღალ ქულას იღებს, და ახალ თემებსაც ცდის, რომ ერთ თემაში არ ჩაიკეტო.",
+    sRead: "წაკითხული", sLiked: "მოწონებული", sSaved: "შენახული", hLiked: "მოწონებული", hSaved: "შენახული", hTopics: "თემები", hHoles: "შენი ინტერესები",
+    eLiked: "დააჭირე გულს ან ორჯერ შეეხე ბარათს და ის აქ გამოჩნდება.", eSaved: "დააჭირე ვარსკვლავს ბარათზე, რომ აქ შეინახო.",
+    eHoles: "მოიწონე ან დიდხანს წაიკითხე რამდენიმე ბარათი და შენი ინტერესები აქ გამოჩნდება.",
+    reset: "ფიდის განულება", resetArm: "კიდევ ერთხელ შეეხე ყველაფრის წასაშლელად", back: "ფიდზე დაბრუნება",
+    note: 'სტატიები პირდაპირ <a href="https://ka.wikipedia.org/" target="_blank" rel="noopener">ვიკიპედიიდან</a> იტვირთება. ტექსტი აღებულია თითოეული სტატიის შესავლიდან და ხელმისაწვდომია <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a> ლიცენზიით; სურათები Wikimedia Commons-იდანაა, ავტორები მითითებულია სტატიის გვერდზე. ფიდის მეხსიერება ამ ბრაუზერში რჩება.'
   }
+
 };
+const LANG_NAMES = { en: "English", pl: "Polski", es: "Español", de: "Deutsch", ka: "ქართული" };
 let LANG = "en";
 const t = k => I18N[LANG][k];
 const catName = c => (I18N[LANG].cats[c] || c);
@@ -422,7 +471,7 @@ function save() {
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
   }, 250);
 }
-LANG = I18N[S.lang] ? S.lang : (["pl", "es"].includes((navigator.language || "").slice(0, 2)) ? navigator.language.slice(0, 2) : "en");
+LANG = I18N[S.lang] ? S.lang : (["pl", "es", "de", "ka"].includes((navigator.language || "").slice(0, 2)) ? navigator.language.slice(0, 2) : "en");
 document.documentElement.lang = LANG;
 const seenT = new Set(S.seen);
 if (!S.likedItems) S.likedItems = {};
@@ -446,7 +495,7 @@ async function wq(params, lang) {
   return j;
 }
 
-const STOP = new Set("a an the of in on at to for and or by from with as is was are be that this which who whose its it into than then also former formerly born died known people person based located series type form part one two first used w we z ze i oraz na do od po o u przez jest był była było są się ten ta jako który która które jego jej ich dla nie lub albo czy roku el la los las un una unos unas de del al y o en por para con como es fue son que se su sus lo le entre sobre año".split(" "));
+const STOP = new Set("a an the of in on at to for and or by from with as is was are be that this which who whose its it into than then also former formerly born died known people person based located series type form part one two first used w we z ze i oraz na do od po o u przez jest był była było są się ten ta jako który która które jego jej ich dla nie lub albo czy roku el la los las un una unos unas de del al y o en por para con como es fue son que se su sus lo le entre sobre año der die das ein eine einer eines und oder von zu im am an auf aus mit für ist war sind wurde als bei des dem den sich auch nicht და ან არის იყო რომ ეს რომელიც".split(" "));
 function tagsFrom(desc) {
   const w = String(desc || "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/)
     .filter(x => x.length > 2 && !STOP.has(x) && !/^\d+(s)?$/.test(x));
@@ -477,7 +526,7 @@ function toLive(data, cat, via, opt) {
 
 // Polish and Spanish: pick articles with English Wikipedia's topic search and quality signals,
 // then follow the interlanguage link to the local article. Local featured/good articles are the fallback.
-const FEATURED = { pl: "incategory:Artykuły_na_medal|Dobre_artykuły", es: "incategory:Wikipedia:Artículos_destacados|Wikipedia:Artículos_buenos" };
+const FEATURED = { pl: "incategory:Artykuły_na_medal|Dobre_artykuły", es: "incategory:Wikipedia:Artículos_destacados|Wikipedia:Artículos_buenos", de: "incategory:Wikipedia:Exzellent|Wikipedia:Lesenswert" };
 async function viaEnglish(enParams, cat, via, opt) {
   const base = { prop: "langlinks|info", lllang: LANG, lllimit: "max" };
   let d = await wq(Object.assign({}, base, enParams), "en");
@@ -494,6 +543,10 @@ async function viaEnglish(enParams, cat, via, opt) {
   return toLive(d2, cat, via, opt);
 }
 async function fetchFeatured(cat) {
+  if (!FEATURED[LANG]) {
+    const r = await wq(Object.assign({}, PROPS, { generator: "random", grnnamespace: 0, grnlimit: 20 }));
+    return toLive(r, cat, { k: "topic" }, { minLen: 4000, needImg: true });
+  }
   const q = { generator: "search", gsrsearch: FEATURED[LANG], gsrlimit: 20, gsrnamespace: 0 };
   let d;
   try { d = await wq(Object.assign({}, PROPS, q, { gsrsort: "random" })); if (d.error) throw 0; }
@@ -987,7 +1040,15 @@ let starting = false, startGen = 0;
 async function pinnedArticle() {
   if (LANG === "en") return STARTERS.find(a => a.title === PIN.en) || null;
   try {
-    const d = await Promise.race([wq(Object.assign({}, PROPS, { titles: PIN[LANG] })), new Promise((_, rej) => setTimeout(() => rej(0), 4000))]);
+    const timeout = () => new Promise((_, rej) => setTimeout(() => rej(0), 4000));
+    let title = PIN[LANG];
+    if (!title) {
+      const ll = await Promise.race([wq({ prop: "langlinks", titles: PIN.en, lllang: LANG }, "en"), timeout()]);
+      const l = ll.query && ll.query.pages && ll.query.pages[0] && ll.query.pages[0].langlinks;
+      title = l && l[0] && (l[0].title || l[0]["*"]);
+      if (!title) return null;
+    }
+    const d = await Promise.race([wq(Object.assign({}, PROPS, { titles: title })), timeout()]);
     return toLive(d, "art", { k: "pin" }, { minLen: 0, needImg: false })[0] || null;
   } catch { return null; }
 }
@@ -1019,8 +1080,9 @@ async function restartFeed(dropPool) {
 function applyStatic() {
   document.documentElement.lang = LANG;
   $("#openSheet").setAttribute("aria-label", t("settingsA"));
-  $("#langs").setAttribute("aria-label", t("langA"));
-  for (const b of document.querySelectorAll("#langs button")) b.setAttribute("aria-pressed", b.dataset.l === LANG);
+  $("#langBtn").setAttribute("aria-label", t("langA") + ": " + LANG_NAMES[LANG]);
+  $("#langCode").textContent = LANG.toUpperCase();
+  for (const b of document.querySelectorAll("#langMenu button")) b.setAttribute("aria-checked", b.dataset.l === LANG);
   $("#sheetTitle").textContent = t("sheetTitle");
   $("#lede").textContent = t("lede");
   $("#savedHead").textContent = t("hSaved");
@@ -1039,7 +1101,13 @@ function switchLang(l) {
   if (sheet.classList.contains("on")) renderSheet();
   restartFeed(true);
 }
-for (const b of document.querySelectorAll("#langs button")) b.addEventListener("click", () => switchLang(b.dataset.l));
+const langBtn = $("#langBtn"), langMenu = $("#langMenu");
+function setMenu(open) { langMenu.hidden = !open; langBtn.setAttribute("aria-expanded", open); }
+langMenu.innerHTML = Object.keys(LANG_NAMES).map(l => `<button role="menuitemradio" data-l="${l}" lang="${l}" aria-checked="false"><span>${LANG_NAMES[l]}</span><small>${l.toUpperCase()}</small></button>`).join("");
+langBtn.addEventListener("click", e => { e.stopPropagation(); setMenu(langMenu.hidden); });
+for (const b of langMenu.querySelectorAll("button")) b.addEventListener("click", () => { setMenu(false); switchLang(b.dataset.l); });
+document.addEventListener("click", e => { if (!langMenu.hidden && !e.target.closest(".langpick")) setMenu(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !langMenu.hidden) { setMenu(false); langBtn.focus(); } });
 $("#openSheet").addEventListener("click", openSheet);
 $("#closeSheet").addEventListener("click", closeSheet);
 scrim.addEventListener("click", closeSheet);
