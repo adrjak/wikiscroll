@@ -48,6 +48,11 @@ a{color:var(--link)}
 .tabs span{padding:15px 0 13px;border-bottom:2px solid transparent}
 .tabs .on{color:var(--text);font-weight:600;border-bottom-color:var(--link)}
 .tabs .off{color:var(--faint)}
+.tools{display:flex;align-items:center;gap:4px}
+.langs{display:flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden}
+.langs button{font-size:12px;font-weight:600;padding:5px 8px;color:var(--muted);background:var(--bg);border-right:1px solid var(--rule-soft)}
+.langs button:last-child{border-right:0}
+.langs button[aria-pressed="true"]{background:var(--link);color:#fff}
 .iconbtn{width:40px;height:40px;border-radius:4px;display:grid;place-items:center;color:var(--muted)}
 .iconbtn:hover{background:var(--box)}
 .iconbtn svg{width:20px;height:20px}
@@ -89,7 +94,7 @@ a{color:var(--link)}
 
 /* action rail */
 .rail{position:absolute;z-index:3;right:max(8px, env(safe-area-inset-right, 0px));bottom:calc(14px + env(safe-area-inset-bottom, 0px));display:flex;flex-direction:column;gap:12px;align-items:center}
-.act{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px;font-size:11px;color:var(--muted)}
+.act{display:flex;flex-direction:column;align-items:center;gap:4px;width:60px;font-size:11px;white-space:nowrap;color:var(--muted)}
 .act .disc{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:var(--box);border:1px solid var(--rule-soft);transition:transform .15s}
 .act:hover .disc{border-color:var(--rule)}
 .act:active .disc{transform:scale(.88)}
@@ -167,9 +172,12 @@ a{color:var(--link)}
 <div id="app">
   <header class="top">
     <div class="brand">WikiScroll<sup>[fyp]</sup></div>
-    <button class="iconbtn" id="openSheet" aria-label="Your interests and saved articles">
+    <div class="tools">
+    <div class="langs" id="langs" role="group" aria-label="Wikipedia language"><button data-l="en" aria-pressed="false">EN</button><button data-l="pl" aria-pressed="false">PL</button><button data-l="es" aria-pressed="false">ES</button></div>
+    <button class="iconbtn" id="openSheet" aria-label="Your likes, saved articles and interests">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
     </button>
+    </div>
   </header>
 
   <main class="feed" id="feed" aria-label="For You feed"></main>
@@ -178,21 +186,21 @@ a{color:var(--link)}
   <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
     <div class="grab"></div>
     <h2 id="sheetTitle">Your WikiScroll</h2>
-    <p class="lede">Every like, save, share, lingering read and quick swipe nudges these weights. The feed mostly serves what scores highest, and keeps testing new topics so you don’t get stuck in one lane.</p>
+    <p class="lede" id="lede"></p>
     <div class="stats" id="stats"></div>
     <h3 id="likedHead">Liked</h3>
     <div class="saved" id="likedList"></div>
-    <h3>Saved</h3>
+    <h3 id="savedHead">Saved</h3>
     <div class="saved" id="savedList"></div>
-    <h3>Topics</h3>
+    <h3 id="topicsHead">Topics</h3>
     <div class="bars" id="bars"></div>
-    <h3>Your rabbit holes</h3>
+    <h3 id="holesHead">Your rabbit holes</h3>
     <div class="tags" id="tags"></div>
     <div class="sheet-foot">
       <button class="btn ghost" id="resetBtn">Reset my feed</button>
       <button class="btn" id="closeSheet">Back to feed</button>
     </div>
-    <p class="note">Articles load live from <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a>. Text is from each article’s introduction and is available under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>; images come from Wikimedia Commons, with credits on each article’s page. The first starter cards are summaries written by Claude. Your feed’s memory stays in this browser.</p>
+    <p class="note" id="note"></p>
   </section>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -215,6 +223,68 @@ const CATS = {
   language: { n: "Language",      e: "🔤", topics: ["linguistics"] },
   odd:      { n: "Oddities",      e: "❓", topics: [] }
 };
+
+/* ---------- languages ---------- */
+const I18N = {
+  en: {
+    cats: { space: "Space", nature: "Nature", history: "History", science: "Science", body: "The Body", art: "Art & Culture", places: "Places", tech: "Tech", language: "Language", odd: "Oddities" },
+    starter: "Starter mix", explore: c => "Something new · " + c, becauseLiked: x => "Because you liked " + x, becauseLike: x => "Because you like #" + x, more: c => "More " + c, picked: "Picked for you",
+    from: "From Wikipedia, the free encyclopedia", summary: "Summary of the Wikipedia article", read: "Read the full article →",
+    like: "Like", save: "Save", share: "Share", nope: "Nope", shareA: "Copy link", nopeA: "Not interested in this topic",
+    hint: "Swipe up for the next one", saved: "Saved to your list", unsaved: "Removed from saved", copied: "Link copied",
+    less: c => "Got it. Less " + c + " for a while", fresh: "Fresh start. The feed is learning again",
+    offShelf: "Can’t reach Wikipedia right now. Showing the starter shelf.", off: "Can’t reach Wikipedia right now.",
+    loadH: "Opening the encyclopedia", loadP: "Fetching articles picked for you.",
+    offH: "Can’t reach Wikipedia", offP: "Check your connection. The feed will try again in a moment.", retry: "Try again now",
+    sheetTitle: "Your WikiScroll", settingsA: "Your likes, saved articles and interests", langA: "Wikipedia language",
+    lede: "Every like, save, share, lingering read and quick swipe nudges these weights. The feed mostly serves what scores highest, and keeps testing new topics so you don’t get stuck in one lane.",
+    sRead: "read", sLiked: "liked", sSaved: "saved", hLiked: "Liked", hSaved: "Saved", hTopics: "Topics", hHoles: "Your rabbit holes",
+    eLiked: "Tap the heart, or double-tap a card, and it shows up here.", eSaved: "Tap the star on any card to keep it here.",
+    eHoles: "Like or linger on a few cards and your rabbit holes will show up here.",
+    reset: "Reset my feed", resetArm: "Tap again to erase everything", back: "Back to feed",
+    note: 'Articles load live from <a href="https://en.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a>. Text is from each article’s introduction and is available under <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0</a>; images come from Wikimedia Commons, with credits on each article’s page. The first starter cards are summaries written by Claude. Your feed’s memory stays in this browser.'
+  },
+  pl: {
+    cats: { space: "Kosmos", nature: "Przyroda", history: "Historia", science: "Nauka", body: "Ludzkie ciało", art: "Sztuka i kultura", places: "Miejsca", tech: "Technologia", language: "Język", odd: "Ciekawostki" },
+    starter: "Na dobry początek", explore: c => "Coś nowego · " + c, becauseLiked: x => "Bo spodobało ci się: " + x, becauseLike: x => "Bo lubisz #" + x, more: c => "Więcej: " + c, picked: "Wybrane dla ciebie",
+    from: "Z Wikipedii, wolnej encyklopedii", summary: "Streszczenie artykułu z Wikipedii", read: "Czytaj cały artykuł →",
+    like: "Lubię", save: "Zapisz", share: "Wyślij", nope: "Nie", shareA: "Kopiuj link", nopeA: "Nie interesuje mnie ten temat",
+    hint: "Przesuń w górę po kolejny", saved: "Zapisano na liście", unsaved: "Usunięto z zapisanych", copied: "Skopiowano link",
+    less: c => "Jasne, przez jakiś czas mniej: " + c, fresh: "Nowy start. Feed uczy się od nowa",
+    offShelf: "Brak połączenia z Wikipedią.", off: "Brak połączenia z Wikipedią.",
+    loadH: "Otwieram encyklopedię", loadP: "Pobieram artykuły wybrane dla ciebie.",
+    offH: "Brak połączenia z Wikipedią", offP: "Sprawdź połączenie. Feed spróbuje ponownie za chwilę.", retry: "Spróbuj teraz",
+    sheetTitle: "Twój WikiScroll", settingsA: "Polubione, zapisane i zainteresowania", langA: "Język Wikipedii",
+    lede: "Każde polubienie, zapisanie, udostępnienie, dłuższe czytanie i szybkie przewinięcie zmienia te wagi. Feed pokazuje głównie to, co ma najwyższy wynik, i wciąż testuje nowe tematy, żeby nie zamknąć się w jednym.",
+    sRead: "przeczytane", sLiked: "polubione", sSaved: "zapisane", hLiked: "Polubione", hSaved: "Zapisane", hTopics: "Tematy", hHoles: "Twoje królicze nory",
+    eLiked: "Kliknij serce albo stuknij dwa razy w kartę, a pojawi się tutaj.", eSaved: "Kliknij gwiazdkę na karcie, żeby ją tu zachować.",
+    eHoles: "Polub kilka kart albo zatrzymaj się na nich dłużej, a twoje królicze nory pojawią się tutaj.",
+    reset: "Zresetuj feed", resetArm: "Stuknij ponownie, by wszystko wymazać", back: "Wróć do feedu",
+    note: 'Artykuły ładują się na żywo z <a href="https://pl.wikipedia.org/" target="_blank" rel="noopener">Wikipedii</a>. Tekst pochodzi ze wstępów artykułów i jest dostępny na licencji <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.pl" target="_blank" rel="noopener">CC BY-SA 4.0</a>; zdjęcia pochodzą z Wikimedia Commons, a ich autorzy są podani na stronach artykułów. Pamięć feedu zostaje w tej przeglądarce.'
+  },
+  es: {
+    cats: { space: "Espacio", nature: "Naturaleza", history: "Historia", science: "Ciencia", body: "El cuerpo", art: "Arte y cultura", places: "Lugares", tech: "Tecnología", language: "Lenguaje", odd: "Curiosidades" },
+    starter: "Para empezar", explore: c => "Algo nuevo · " + c, becauseLiked: x => "Porque te gustó " + x, becauseLike: x => "Porque te gusta #" + x, more: c => "Más: " + c, picked: "Elegido para ti",
+    from: "De Wikipedia, la enciclopedia libre", summary: "Resumen del artículo de Wikipedia", read: "Leer el artículo completo →",
+    like: "Me gusta", save: "Guardar", share: "Compartir", nope: "No", shareA: "Copiar enlace", nopeA: "No me interesa este tema",
+    hint: "Desliza hacia arriba para ver otro", saved: "Guardado en tu lista", unsaved: "Quitado de guardados", copied: "Enlace copiado",
+    less: c => "Entendido. Menos " + c + " por un tiempo", fresh: "Empezamos de cero. El feed vuelve a aprender",
+    offShelf: "No se puede conectar con Wikipedia.", off: "No se puede conectar con Wikipedia.",
+    loadH: "Abriendo la enciclopedia", loadP: "Buscando artículos elegidos para ti.",
+    offH: "No se puede conectar con Wikipedia", offP: "Revisa tu conexión. El feed lo intentará de nuevo en un momento.", retry: "Reintentar ahora",
+    sheetTitle: "Tu WikiScroll", settingsA: "Tus me gusta, guardados e intereses", langA: "Idioma de Wikipedia",
+    lede: "Cada me gusta, guardado, enlace compartido, lectura larga o deslizamiento rápido ajusta estos pesos. El feed muestra sobre todo lo que puntúa más alto y sigue probando temas nuevos para que no te quedes en uno solo.",
+    sRead: "leídos", sLiked: "me gusta", sSaved: "guardados", hLiked: "Te gustaron", hSaved: "Guardados", hTopics: "Temas", hHoles: "Tus madrigueras",
+    eLiked: "Toca el corazón o toca dos veces una tarjeta y aparecerá aquí.", eSaved: "Toca la estrella en cualquier tarjeta para guardarla aquí.",
+    eHoles: "Dale me gusta o detente en algunas tarjetas y aquí aparecerán tus madrigueras.",
+    reset: "Reiniciar mi feed", resetArm: "Toca otra vez para borrarlo todo", back: "Volver al feed",
+    note: 'Los artículos se cargan en directo desde <a href="https://es.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a>. El texto procede de la introducción de cada artículo y está disponible bajo <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.es" target="_blank" rel="noopener">CC BY-SA 4.0</a>; las imágenes vienen de Wikimedia Commons, con sus créditos en la página de cada artículo. La memoria del feed se queda en este navegador.'
+  }
+};
+let LANG = "en";
+const t = k => I18N[LANG][k];
+const catName = c => (I18N[LANG].cats[c] || c);
+const lp = () => (LANG === "en" ? "" : LANG + ":");
 
 const RAW = [
 ["space","Voyager 1","nasa deep-space exploration","The farthest human-made object is still phoning home.","Launched by NASA in 1977, Voyager 1 flew past Jupiter and Saturn and simply kept going. In 2012 it became the first spacecraft to cross into interstellar space. Its faint radio signal now needs close to a full day to reach Earth, and it carries a golden record of sounds from our planet.","1977","launch year"],
@@ -305,10 +375,10 @@ const $ = (s, r = document) => r.querySelector(s);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const slug = t => t.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
-const tkey = t => String(t).toLowerCase().trim();
+const tkey = x => lp() + String(x).toLowerCase().trim();
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-const wikiURL = t => "https://en.wikipedia.org/wiki/" + encodeURIComponent(t.replace(/ /g, "_"));
+const wikiURL = (x, l) => "https://" + (l || LANG) + ".wikipedia.org/wiki/" + encodeURIComponent(x.replace(/ /g, "_"));
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -325,20 +395,21 @@ function save() {
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
   }, 250);
 }
+LANG = I18N[S.lang] ? S.lang : (["pl", "es"].includes((navigator.language || "").slice(0, 2)) ? navigator.language.slice(0, 2) : "en");
+document.documentElement.lang = LANG;
 const seenT = new Set(S.seen);
 if (!S.likedItems) S.likedItems = {};
 const liked = new Set([...S.liked, ...Object.keys(S.likedItems)]);
 
 /* ---------- Wikipedia API ---------- */
-const API = "https://en.wikipedia.org/w/api.php";
 const PROPS = {
   prop: "extracts|pageimages|description|pageprops|info",
   exintro: 1, explaintext: 1, exlimit: "max",
   piprop: "thumbnail", pithumbsize: 640,
   ppprop: "disambiguation", redirects: 1
 };
-async function wq(params) {
-  const u = new URL(API);
+async function wq(params, lang) {
+  const u = new URL("https://" + (lang || LANG) + ".wikipedia.org/w/api.php");
   const all = Object.assign({ action: "query", format: "json", formatversion: 2, origin: "*" }, params);
   for (const k in all) u.searchParams.set(k, all[k]);
   const r = await fetch(u, { headers: { "Api-User-Agent": "WikiScroll/1.0 (https://wikiscroll.site)" } });
@@ -348,7 +419,7 @@ async function wq(params) {
   return j;
 }
 
-const STOP = new Set("a an the of in on at to for and or by from with as is was are be that this which who whose its it into than then also former formerly born died known people person based located series type form part one two first used".split(" "));
+const STOP = new Set("a an the of in on at to for and or by from with as is was are be that this which who whose its it into than then also former formerly born died known people person based located series type form part one two first used w we z ze i oraz na do od po o u przez jest był była było są się ten ta jako który która które jego jej ich dla nie lub albo czy roku el la los las un una unos unas de del al y o en por para con como es fue son que se su sus lo le entre sobre año".split(" "));
 function tagsFrom(desc) {
   const w = String(desc || "").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/)
     .filter(x => x.length > 2 && !STOP.has(x) && !/^\d+(s)?$/.test(x));
@@ -370,7 +441,7 @@ function toLive(data, cat, via, opt) {
       !/^(List|Index|Outline|Timeline) of /.test(p.title) &&
       (p.length || 0) >= opt.minLen && (!opt.needImg || p.thumbnail))
     .map(p => ({
-      id: "w" + p.pageid, title: p.title, cat, desc: p.description || "",
+      id: lp() + "w" + p.pageid, title: p.title, cat, desc: p.description || "",
       tags: tagsFrom(p.description), paras: paragraphs(p.extract),
       img: p.thumbnail ? p.thumbnail.source : "", kind: p.thumbnail ? "photo" : "none",
       fv: "", fl: "", via, live: true
@@ -414,6 +485,7 @@ async function unusualTitles() {
   return list;
 }
 async function fetchUnusual() {
+  if (LANG !== "en") return fetchRandom();
   let list = [];
   try { list = await unusualTitles(); } catch {}
   const fresh = list.filter(t => !seenT.has(tkey(t)));
@@ -446,8 +518,8 @@ function nudge(a, d) {
   save();
 }
 function seed(a, w) {
-  const s = S.seeds.find(x => x.t === a.title);
-  if (s) s.w += w; else S.seeds.push({ t: a.title, c: a.cat, w });
+  const s = S.seeds.find(x => x.t === a.title && (x.l || "en") === LANG);
+  if (s) s.w += w; else S.seeds.push({ t: a.title, c: a.cat, w, l: LANG });
   S.seeds.sort((x, y) => y.w - x.w); S.seeds = S.seeds.slice(0, 25); save();
 }
 function decay() {
@@ -479,14 +551,14 @@ function pickNext() {
   if (n < 3) {
     const spread = cand.filter(a => !last.includes(a.cat));
     chosen = pick(spread.length ? spread : cand);
-    reason = { k: "start", t: "Starter mix" };
+    reason = { k: "start", t: t("starter") };
   } else if (Math.random() < Math.max(0.15, 0.5 - n * 0.025)) {
     const cats = [...new Set(cand.map(a => a.cat))].filter(c => (S.aff.c[c] || 0) > -2.5 && !last.includes(c));
     if (cats.length) {
       cats.sort((x, y) => (S.exp[x] || 0) - (S.exp[y] || 0) + (Math.random() - 0.5) * 1.5);
       const cat = cats[Math.random() < 0.7 ? 0 : Math.min(1, cats.length - 1)];
       chosen = pick(cand.filter(a => a.cat === cat));
-      reason = { k: "explore", t: "Something new · " + CATS[cat].n };
+      reason = { k: "explore", t: t("explore")(catName(cat)) };
     }
   }
   if (!chosen) {
@@ -494,7 +566,7 @@ function pickNext() {
     for (const a of cand) {
       const f = affinity(a);
       let s = f.c + 0.9 * f.tagAvg + Math.random() * 0.45;
-      if (a.via.k === "related") { const sd = S.seeds.find(x => x.t === a.via.from); s += 0.4 + (sd ? Math.min(sd.w, 4) * 0.15 : 0); }
+      if (a.via.k === "related") { const sd = S.seeds.find(x => x.t === a.via.from && (x.l || "en") === LANG); s += 0.4 + (sd ? Math.min(sd.w, 4) * 0.15 : 0); }
       if (a.via.k === "shelf" && n >= 3) s -= 0.4;
       if (last.length === 2 && last[0] === a.cat && last[1] === a.cat) s -= 2.2;
       else if (last[last.length - 1] === a.cat) s -= 0.35;
@@ -503,19 +575,19 @@ function pickNext() {
     }
     chosen = top.a;
     const f = top.f;
-    let t;
-    if (chosen.via.k === "related") t = "Because you liked " + chosen.via.from;
-    else if (f.bv > 0.9 && f.bv * 0.9 >= f.c * 0.5) t = "Because you like #" + f.best;
-    else if (f.c > 0.6) t = "More " + CATS[chosen.cat].n;
-    else t = "Picked for you";
-    reason = { k: "interest", t };
+    let why;
+    if (chosen.via.k === "related") why = t("becauseLiked")(chosen.via.from);
+    else if (f.bv > 0.9 && f.bv * 0.9 >= f.c * 0.5) why = t("becauseLike")(f.best);
+    else if (f.c > 0.6) why = t("more")(catName(chosen.cat));
+    else why = t("picked");
+    reason = { k: "interest", t: why };
   }
   pool = pool.filter(p => p !== chosen);
   return { a: chosen, reason };
 }
 
 /* ---------- fetching plan ---------- */
-let fetching = false, fails = 0, offline = false, emptyRuns = 0, nextFetch = 0;
+let fetching = false, fails = 0, offline = false, emptyRuns = 0, nextFetch = 0, gen = 0;
 function softmaxCat() {
   const ks = Object.keys(CATS).filter(c => (S.aff.c[c] || 0) > -2.5);
   const ws = ks.map(c => Math.exp((S.aff.c[c] || 0) / 1.2));
@@ -534,7 +606,7 @@ function planJobs() {
     shuffle(Object.keys(CATS)).slice(0, 3).forEach(c => jobs.push(() => fetchTopic(c)));
     return jobs;
   }
-  const seeds = S.seeds.filter(s => s.w > 0.8);
+  const seeds = S.seeds.filter(s => s.w > 0.8 && (s.l || "en") === LANG);
   if (seeds.length && Math.random() < 0.85) {
     let r = Math.random() * seeds.reduce((a, s) => a + s.w, 0), sd = seeds[0];
     for (const s of seeds) { r -= s.w; if (r <= 0) { sd = s; break; } }
@@ -547,7 +619,9 @@ function planJobs() {
 async function topUp() {
   if (fetching || offline || Date.now() < nextFetch || pool.length >= 16) return;
   fetching = true;
+  const g = gen;
   const res = await Promise.allSettled(planJobs().map(f => f()));
+  if (g !== gen) { fetching = false; topUp(); return; }
   let got = 0;
   for (const r of res) if (r.status === "fulfilled") for (const a of r.value) if (addToPool(a)) got++;
   fetching = false;
@@ -564,8 +638,8 @@ async function topUp() {
 function goOffline() {
   offline = true;
   let added = 0;
-  for (const a of shuffle(STARTERS)) if (addToPool(a)) added++;
-  toast(added ? "Can’t reach Wikipedia right now. Showing the starter shelf." : "Can’t reach Wikipedia right now.");
+  if (LANG === "en") for (const a of shuffle(STARTERS)) if (addToPool(a)) added++;
+  toast(added ? t("offShelf") : t("off"));
   setTimeout(() => { offline = false; fails = 0; ensureAhead(); }, 30000);
 }
 
@@ -604,18 +678,18 @@ function renderCard(a, reason) {
   const paras = a.paras.map((p, i) => `<p>${i === 0 ? leadHTML(a, p) : esc(p)}</p>`).join("");
   el.innerHTML = `
     <div class="page">
-      <div class="kicker"><span class="cat">${esc(c.n)}</span><span class="why">${esc(reason.t)}</span></div>
+      <div class="kicker"><span class="cat">${esc(catName(a.cat))}</span><span class="why">${esc(reason.t)}</span></div>
       <h2 class="title">${esc(a.title)}</h2>
-      <div class="from">${a.live ? "From Wikipedia, the free encyclopedia" : "Summary of the Wikipedia article"}</div>
+      <div class="from">${a.live ? t("from") : t("summary")}</div>
       <figure class="thumb">${pic}${caption || info ? `<figcaption>${caption}${info}</figcaption>` : ""}</figure>
       <div class="sum" tabindex="0" role="button" aria-expanded="false">${paras}</div>
-      <a class="read" href="${wikiURL(a.title)}" target="_blank" rel="noopener">Read the full article →</a>
+      <a class="read" href="${wikiURL(a.title)}" target="_blank" rel="noopener">${t("read")}</a>
     </div>
     <div class="rail">
-      <button class="act like" aria-pressed="${liked.has(a.id)}" aria-label="Like"><span class="disc">${ICON.heart}</span><span>Like</span></button>
-      <button class="act save" aria-pressed="${!!S.saved[a.id]}" aria-label="Save"><span class="disc">${ICON.save}</span><span>Save</span></button>
-      <button class="act share" aria-label="Copy link"><span class="disc">${ICON.share}</span><span>Share</span></button>
-      <button class="act nope" aria-label="Not interested in this topic"><span class="disc">${ICON.nope}</span><span>Nope</span></button>
+      <button class="act like" aria-pressed="${liked.has(a.id)}" aria-label="${t("like")}"><span class="disc">${ICON.heart}</span><span>${t("like")}</span></button>
+      <button class="act save" aria-pressed="${!!S.saved[a.id]}" aria-label="${t("save")}"><span class="disc">${ICON.save}</span><span>${t("save")}</span></button>
+      <button class="act share" aria-label="${t("shareA")}"><span class="disc">${ICON.share}</span><span>${t("share")}</span></button>
+      <button class="act nope" aria-label="${t("nopeA")}"><span class="disc">${ICON.nope}</span><span>${t("nope")}</span></button>
     </div>`;
   const im = $(".pic img", el);
   if (im) im.addEventListener("error", () => { im.remove(); im.parentNode && im.parentNode.classList.add("noimg"); }, { once: true });
@@ -642,7 +716,7 @@ function appendNext() {
   if (cards.length === 1 && !S.hinted) {
     const hint = document.createElement("div");
     hint.className = "hint"; hint.id = "hint";
-    hint.innerHTML = ICON.up + "Swipe up for the next one";
+    hint.innerHTML = ICON.up + esc(t("hint"));
     el.appendChild(hint);
   }
   return true;
@@ -667,8 +741,8 @@ function refreshAhead() {
 function showEnd() {
   if (!endEl) { endEl = document.createElement("section"); endEl.className = "card endcard"; feed.appendChild(endEl); }
   endEl.innerHTML = offline && !pool.length
-    ? `<div class="end-inner"><h2>Can’t reach Wikipedia</h2><p>Check your connection. The feed will try again in a moment.</p><button class="btn" id="retryBtn">Try again now</button></div>`
-    : `<div class="end-inner"><h2>Opening the encyclopedia<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></h2><p>Fetching articles picked for you.</p></div>`;
+    ? `<div class="end-inner"><h2>${t("offH")}</h2><p>${t("offP")}</p><button class="btn" id="retryBtn">${t("retry")}</button></div>`
+    : `<div class="end-inner"><h2>${t("loadH")}<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></h2><p>${t("loadP")}</p></div>`;
   $("#retryBtn", endEl)?.addEventListener("click", () => { offline = false; fails = 0; nextFetch = 0; showEnd(); topUp(); });
 }
 
@@ -720,7 +794,7 @@ function burst(rec, x, y) {
 function setLike(rec, on) {
   const btn = $(".like", rec.el);
   if (on === liked.has(rec.a.id)) return;
-  if (on) { liked.add(rec.a.id); S.likedItems[rec.a.id] = { t: rec.a.title, c: rec.a.cat, at: Date.now() }; nudge(rec.a, W.like); seed(rec.a, 2); }
+  if (on) { liked.add(rec.a.id); S.likedItems[rec.a.id] = { t: rec.a.title, c: rec.a.cat, at: Date.now(), l: LANG }; nudge(rec.a, W.like); seed(rec.a, 2); }
   else { liked.delete(rec.a.id); delete S.likedItems[rec.a.id]; nudge(rec.a, -W.like); }
   S.liked = [...liked].slice(-2000); save(); if (sheet.classList.contains("on")) renderSheet();
   btn.setAttribute("aria-pressed", on); btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop");
@@ -732,15 +806,15 @@ function wire(rec) {
   $(".like", el).addEventListener("click", () => setLike(rec, !liked.has(a.id)));
   $(".save", el).addEventListener("click", e => {
     const btn = e.currentTarget, on = !S.saved[a.id];
-    if (on) { S.saved[a.id] = { t: a.title, c: a.cat, at: Date.now() }; nudge(a, W.save); seed(a, 2); toast("Saved to your list"); }
-    else { delete S.saved[a.id]; nudge(a, -W.save); toast("Removed from saved"); }
+    if (on) { S.saved[a.id] = { t: a.title, c: a.cat, at: Date.now(), l: LANG }; nudge(a, W.save); seed(a, 2); toast(t("saved")); }
+    else { delete S.saved[a.id]; nudge(a, -W.save); toast(t("unsaved")); }
     save(); btn.setAttribute("aria-pressed", on); rec.flags.engaged = true;
     if (on) refreshAhead();
   });
   $(".share", el).addEventListener("click", () => {
     const url = wikiURL(a.title);
     const fail = () => toast(url, true);
-    try { navigator.clipboard.writeText(url).then(() => toast("Link copied"), fail); } catch { fail(); }
+    try { navigator.clipboard.writeText(url).then(() => toast(t("copied")), fail); } catch { fail(); }
     if (!rec.flags.shared) { rec.flags.shared = true; nudge(a, W.share); seed(a, 1.5); }
     rec.flags.engaged = true;
   });
@@ -748,7 +822,7 @@ function wire(rec) {
     nudge(a, W.nope); rec.flags.engaged = true;
     S.seeds = S.seeds.filter(s => s.t !== a.title && s.c !== a.cat || s.w > 3);
     pool = pool.filter(p => !(p.cat === a.cat && Math.random() < 0.7) && !(p.via.k === "related" && p.via.from === a.title));
-    toast("Got it. Less " + CATS[a.cat].n + " for a while");
+    toast(t("less")(catName(a.cat)));
     refreshAhead();
     const next = cards[active + 1]; if (next) next.el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
   });
@@ -783,8 +857,8 @@ async function backfillLiked() {
   const pids = missing.filter(id => /^w\d+$/.test(id)).map(id => id.slice(1));
   for (let i = 0; i < pids.length; i += 50) {
     try {
-      const d = await wq({ pageids: pids.slice(i, i + 50).join("|") });
-      for (const p of (d.query && d.query.pages) || []) if (!p.missing && p.title) S.likedItems["w" + p.pageid] = { t: p.title, c: "", at: 0 };
+      const d = await wq({ pageids: pids.slice(i, i + 50).join("|") }, "en");
+      for (const p of (d.query && d.query.pages) || []) if (!p.missing && p.title) S.likedItems["w" + p.pageid] = { t: p.title, c: "", at: 0, l: "en" };
     } catch { break; }
   }
   save();
@@ -800,44 +874,71 @@ function openSheet() {
 }
 function closeSheet() {
   sheet.classList.remove("on"); scrim.classList.remove("on"); sheet.setAttribute("aria-hidden", "true");
-  resetArmed = false; $("#resetBtn").textContent = "Reset my feed";
+  resetArmed = false; $("#resetBtn").textContent = t("reset");
   if (cards[active]) { cards[active].enter = performance.now(); cards[active].flags.dwellDone = true; }
 }
 function renderSheet() {
   const savedList = Object.entries(S.saved).sort((x, y) => (y[1].at || 0) - (x[1].at || 0));
   const likedList = Object.entries(S.likedItems).sort((x, y) => (y[1].at || 0) - (x[1].at || 0));
-  $("#likedHead").textContent = likedList.length ? "Liked (" + likedList.length + ")" : "Liked";
+  $("#likedHead").textContent = t("hLiked") + (likedList.length ? " (" + likedList.length + ")" : "");
   $("#likedList").innerHTML = likedList.length
-    ? likedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc(CATS[s.c] ? CATS[s.c].n : "")}</small></a>`).join("")
-    : `<p class="empty">Tap the heart, or double-tap a card, and it shows up here.</p>`;
-  $("#stats").innerHTML = [[S.views, "read"], [liked.size, "liked"], [savedList.length, "saved"]]
+    ? likedList.map(([, s]) => `<a href="${wikiURL(s.t, s.l || "en")}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc([CATS[s.c] ? catName(s.c) : "", (s.l || "en") !== LANG ? (s.l || "en").toUpperCase() : ""].filter(Boolean).join(" · "))}</small></a>`).join("")
+    : `<p class="empty">${t("eLiked")}</p>`;
+  $("#stats").innerHTML = [[S.views, t("sRead")], [liked.size, t("sLiked")], [savedList.length, t("sSaved")]]
     .map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
   const rows = Object.keys(CATS).map(k => [k, S.aff.c[k] || 0]).sort((a, b) => b[1] - a[1]);
   const max = Math.max(1, ...rows.map(r => Math.abs(r[1])));
   $("#bars").innerHTML = rows.map(([k, v]) => {
     const w = Math.abs(v) / max * 50, pos = v >= 0;
-    return `<span class="nm">${esc(CATS[k].n)}</span><span class="tr"><span class="fl" style="${pos ? "left:50%" : "right:50%"};width:${w}%;background:${pos ? "var(--link)" : "var(--heart)"}"></span></span><span class="v">${v > 0 ? "+" : ""}${v.toFixed(1)}</span>`;
+    return `<span class="nm">${esc(catName(k))}</span><span class="tr"><span class="fl" style="${pos ? "left:50%" : "right:50%"};width:${w}%;background:${pos ? "var(--link)" : "var(--heart)"}"></span></span><span class="v">${v > 0 ? "+" : ""}${v.toFixed(1)}</span>`;
   }).join("");
   const tags = Object.entries(S.aff.t).filter(([, v]) => v > 0.25).sort((a, b) => b[1] - a[1]).slice(0, 12);
-  const seeds = S.seeds.slice(0, 6).map(s => `<span>${esc(s.t)}</span>`).join("");
+  const seeds = S.seeds.filter(s => (s.l || "en") === LANG).slice(0, 6).map(s => `<span>${esc(s.t)}</span>`).join("");
   $("#tags").innerHTML = (tags.length || seeds)
-    ? tags.map(([t]) => `<span>#${esc(t)}</span>`).join("") + seeds
-    : `<p class="empty">Like or linger on a few cards and your rabbit holes will show up here.</p>`;
+    ? tags.map(([tg]) => `<span>#${esc(tg)}</span>`).join("") + seeds
+    : `<p class="empty">${t("eHoles")}</p>`;
   $("#savedList").innerHTML = savedList.length
-    ? savedList.map(([, s]) => `<a href="${wikiURL(s.t)}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc(CATS[s.c] ? CATS[s.c].n : "")}</small></a>`).join("")
-    : `<p class="empty">Tap the star on any card to keep it here.</p>`;
+    ? savedList.map(([, s]) => `<a href="${wikiURL(s.t, s.l || "en")}" target="_blank" rel="noopener"><span>${esc(s.t)}</span><small>${esc([CATS[s.c] ? catName(s.c) : "", (s.l || "en") !== LANG ? (s.l || "en").toUpperCase() : ""].filter(Boolean).join(" · "))}</small></a>`).join("")
+    : `<p class="empty">${t("eSaved")}</p>`;
 }
 $("#resetBtn").addEventListener("click", e => {
-  if (!resetArmed) { resetArmed = true; e.currentTarget.textContent = "Tap again to erase everything"; return; }
-  S = fresh(); S.hinted = true; seenT.clear(); liked.clear(); save();
+  if (!resetArmed) { resetArmed = true; e.currentTarget.textContent = t("resetArm"); return; }
+  S = fresh(); S.hinted = true; S.lang = LANG; seenT.clear(); liked.clear(); save();
   closeSheet();
+  restartFeed(false);
+  toast(t("fresh"));
+});
+function restartFeed(dropPool) {
   for (const c of cards) io.unobserve(c.el);
   cards.length = 0; active = -1; feed.innerHTML = ""; endEl = null; feed.scrollTop = 0;
-  pool = pool.filter(a => a.live);
-  shuffle(STARTERS).slice(0, 3).forEach(addToPool);
-  ensureAhead(); setActive(0);
-  toast("Fresh start. The feed is learning again");
-});
+  pool = dropPool ? [] : pool.filter(a => a.live);
+  if (LANG === "en") shuffle(STARTERS).slice(0, 2).forEach(addToPool);
+  ensureAhead();
+  if (cards.length) setActive(0);
+}
+function applyStatic() {
+  document.documentElement.lang = LANG;
+  $("#openSheet").setAttribute("aria-label", t("settingsA"));
+  $("#langs").setAttribute("aria-label", t("langA"));
+  for (const b of document.querySelectorAll("#langs button")) b.setAttribute("aria-pressed", b.dataset.l === LANG);
+  $("#sheetTitle").textContent = t("sheetTitle");
+  $("#lede").textContent = t("lede");
+  $("#savedHead").textContent = t("hSaved");
+  $("#topicsHead").textContent = t("hTopics");
+  $("#holesHead").textContent = t("hHoles");
+  $("#resetBtn").textContent = t("reset");
+  $("#closeSheet").textContent = t("back");
+  $("#note").innerHTML = t("note");
+}
+function switchLang(l) {
+  if (l === LANG || !I18N[l]) return;
+  LANG = l; S.lang = l; save(); gen++;
+  offline = false; fails = 0; emptyRuns = 0; nextFetch = 0;
+  applyStatic();
+  if (sheet.classList.contains("on")) renderSheet();
+  restartFeed(true);
+}
+for (const b of document.querySelectorAll("#langs button")) b.addEventListener("click", () => switchLang(b.dataset.l));
 $("#openSheet").addEventListener("click", openSheet);
 $("#closeSheet").addEventListener("click", closeSheet);
 scrim.addEventListener("click", closeSheet);
@@ -857,13 +958,14 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---------- go: two instant starter cards, then live Wikipedia ---------- */
+applyStatic();
 const firstCats = new Set();
-for (const a of shuffle(STARTERS)) {
+if (LANG === "en") for (const a of shuffle(STARTERS)) {
   if (firstCats.size >= 2) break;
   if (!firstCats.has(a.cat) && addToPool(a)) firstCats.add(a.cat);
 }
 ensureAhead();
-setActive(0);
+if (cards.length) setActive(0);
 backfillLiked();
 })();
 
