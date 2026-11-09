@@ -80,6 +80,8 @@ a{color:var(--link)}
 .langmenu button:hover{background:var(--box)}
 .langmenu button[aria-checked="true"]{color:var(--link);font-weight:600}
 .langmenu button[aria-checked="true"] small{color:var(--link)}
+.sound.waiting svg{animation:soundPulse 1.1s ease-in-out infinite}
+@keyframes soundPulse{50%{opacity:.35;transform:scale(.9)}}
 .sound .off{display:none}.sound.muted .on{display:none}.sound.muted .off{display:block}.sound.muted{color:var(--faint)}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .seg button{padding:8px 12px;border:1px solid var(--rule);background:var(--box);font-size:14px;border-radius:2px;color:var(--text)}
@@ -1158,12 +1160,13 @@ const Music = (() => {
     }
   };
 
-  let ctx = null, bus, out, delayIn, noise, timer = 0, track = null, step = 0, nextT = 0, melody = null, loops = 0;
+  let ctx = null, bus, out, delayIn, noise, timer = 0, track = null, step = 0, nextT = 0, melody = null, loops = 0, listeners = [];
 
   function init() {
     if (ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     ctx = new AC();
+    ctx.onstatechange = () => listeners.forEach(fn => fn());
     out = ctx.createGain(); out.gain.value = 0;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 6000;
@@ -1309,11 +1312,16 @@ const Music = (() => {
 
   return {
     supported: () => !!(window.AudioContext || window.webkitAudioContext),
+    onChange(fn) { listeners.push(fn); },
     get playing() { return !!track && !!ctx && ctx.state === "running"; },
     play(name) {
       init(); if (!ctx || !TRACKS[name]) return;
       try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch {}
-      ctx.resume();
+      if (ctx.state !== "running") {
+        // iOS only unlocks audio if a sound starts inside the tap itself
+        try { const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource(); src.buffer = b; src.connect(ctx.destination); src.start(0); } catch {}
+        ctx.resume().catch(() => {});
+      }
       if (track !== name) {
         track = name; step = 0; loops = 0; melody = compose(TRACKS[name], TRACKS[name].seed);
         nextT = ctx.currentTime + 0.08;
@@ -1352,6 +1360,7 @@ function renderSound() {
   soundBtn.setAttribute("aria-pressed", on);
   soundBtn.setAttribute("aria-label", mt("soundA"));
   soundBtn.classList.toggle("muted", !on);
+  soundBtn.classList.toggle("waiting", on && !Music.playing);
   $("#musicHead").textContent = mt("music");
   for (const b of document.querySelectorAll("#musicSeg button")) {
     b.textContent = mt(b.dataset.m);
@@ -1364,16 +1373,20 @@ function setMusic(m) {
   renderSound();
   track("music-" + m, "Music: " + m);
 }
-function unlockAudio() {
-  if (audioUnlocked) return;
+function unlockAudio(e) {
+  if (e && e.target && e.target.closest && e.target.closest("#soundBtn, #musicSeg")) return;
   audioUnlocked = true;
-  for (const ev of ["pointerup", "touchend", "keydown"]) removeEventListener(ev, unlockAudio, true);
-  if (S.music !== "off") Music.play(S.music);
+  if (S.music !== "off" && !Music.playing) Music.play(S.music);
 }
 if (Music.supported()) {
-  for (const ev of ["pointerup", "touchend", "keydown"]) addEventListener(ev, unlockAudio, true);
-  soundBtn.addEventListener("click", () => setMusic(S.music === "off" ? S.lastTrack : "off"));
-  for (const b of document.querySelectorAll("#musicSeg button")) b.addEventListener("click", () => setMusic(b.dataset.m));
+  for (const ev of ["pointerup", "touchend", "click", "keydown"]) addEventListener(ev, unlockAudio, true);
+  Music.onChange(renderSound);
+  soundBtn.addEventListener("click", () => {
+    audioUnlocked = true;
+    if (S.music !== "off" && !Music.playing) { Music.play(S.music); renderSound(); }
+    else setMusic(S.music === "off" ? S.lastTrack : "off");
+  });
+  for (const b of document.querySelectorAll("#musicSeg button")) b.addEventListener("click", () => { audioUnlocked = true; setMusic(b.dataset.m); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) Music.pause(); else if (S.music !== "off") Music.resume(); });
 } else {
   soundBtn.hidden = true; $("#musicHead").hidden = true; $("#musicSeg").hidden = true;
